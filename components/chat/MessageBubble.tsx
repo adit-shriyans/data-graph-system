@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import type { ChatMessage, NodeType } from "@/types";
 import { NODE_COLORS, NODE_LABELS } from "@/types";
 
 export default function MessageBubble({ message }: { message: ChatMessage }) {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const [showSql, setShowSql] = useState(false);
   const isUser = message.role === "user";
 
@@ -14,18 +17,22 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
         className={`max-w-[85%] rounded-xl px-4 py-3 ${
           isUser
             ? "bg-blue-600 text-white"
-            : "bg-zinc-800 text-zinc-200 border border-zinc-700"
+            : isLight
+              ? "bg-white text-zinc-800 border border-zinc-200"
+              : "bg-zinc-800 text-zinc-200 border border-zinc-700"
         }`}
       >
         <div className="text-sm whitespace-pre-wrap leading-relaxed">
-          <FormattedContent content={message.content} />
+          <FormattedContent content={message.content} isLight={isLight} />
         </div>
 
         {message.sql && (
-          <div className="mt-2 pt-2 border-t border-zinc-600/50">
+          <div className={`mt-2 pt-2 border-t ${isLight ? "border-zinc-300/80" : "border-zinc-600/50"}`}>
             <button
               onClick={() => setShowSql(!showSql)}
-              className="text-xs text-zinc-400 hover:text-zinc-200 transition-colors flex items-center gap-1"
+              className={`text-xs transition-colors flex items-center gap-1 ${
+                isLight ? "text-zinc-500 hover:text-zinc-800" : "text-zinc-400 hover:text-zinc-200"
+              }`}
             >
               <svg
                 className={`w-3 h-3 transition-transform ${showSql ? "rotate-90" : ""}`}
@@ -43,7 +50,13 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
               SQL Query
             </button>
             {showSql && (
-              <pre className="mt-2 p-2 bg-zinc-900 rounded-md text-xs text-emerald-400 overflow-x-auto font-mono">
+              <pre
+                className={`mt-2 p-2 border rounded-md text-xs overflow-x-auto font-mono ${
+                  isLight
+                    ? "bg-white border-zinc-200 text-emerald-700"
+                    : "bg-zinc-900 border-transparent text-emerald-400"
+                }`}
+              >
                 {message.sql}
               </pre>
             )}
@@ -51,12 +64,13 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
         )}
 
         {message.entities && message.entities.length > 0 && (
-          <div className="mt-2 pt-2 border-t border-zinc-600/50">
-            <div className="text-xs text-zinc-400 mb-1.5 font-medium">Referenced entities</div>
+          <div className={`mt-2 pt-2 border-t ${isLight ? "border-zinc-300/80" : "border-zinc-600/50"}`}>
+            <div className={`text-xs mb-1.5 font-medium ${isLight ? "text-zinc-500" : "text-zinc-400"}`}>Referenced entities</div>
             <div className="flex flex-wrap gap-1.5">
               {message.entities.slice(0, 12).map((e, i) => {
                 const color = NODE_COLORS[e.type as NodeType] || "#6b7280";
                 const label = NODE_LABELS[e.type as NodeType] || e.type;
+                const scopeOnly = e.id === "__query_scope__";
                 return (
                   <span
                     key={i}
@@ -65,7 +79,10 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
                   >
                     <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />
                     <span style={{ color }}>{label}</span>
-                    <span className="text-zinc-400">{e.id}</span>
+                    {!scopeOnly && <span className={isLight ? "text-zinc-500" : "text-zinc-400"}>{e.id}</span>}
+                    {scopeOnly && (
+                      <span className={`${isLight ? "text-zinc-500" : "text-zinc-400"} italic`}>(in query)</span>
+                    )}
                   </span>
                 );
               })}
@@ -77,7 +94,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
   );
 }
 
-function FormattedContent({ content }: { content: string }) {
+function FormattedContent({ content, isLight }: { content: string; isLight: boolean }) {
   const parts = content.split(/(```[\s\S]*?```|\|.*\|)/g);
 
   return (
@@ -88,7 +105,11 @@ function FormattedContent({ content }: { content: string }) {
           return (
             <pre
               key={i}
-              className="my-2 p-2 bg-zinc-900 rounded-md text-xs overflow-x-auto font-mono text-emerald-400"
+              className={`my-2 p-2 border rounded-md text-xs overflow-x-auto font-mono ${
+                isLight
+                  ? "bg-white border-zinc-200 text-emerald-700"
+                  : "bg-zinc-900 border-transparent text-emerald-400"
+              }`}
             >
               {code}
             </pre>
@@ -97,7 +118,10 @@ function FormattedContent({ content }: { content: string }) {
 
         const formatted = part
           .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-          .replace(/`(.*?)`/g, '<code class="bg-zinc-700 px-1 rounded text-xs">$1</code>');
+          .replace(
+            /`(.*?)`/g,
+            `<code class="${isLight ? "bg-zinc-200" : "bg-zinc-700"} px-1 rounded text-xs">$1</code>`,
+          );
 
         return (
           <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />

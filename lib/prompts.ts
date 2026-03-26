@@ -123,4 +123,5 @@ RULES:
 - Include specific numbers and IDs from the data
 - Use markdown tables for tabular data
 - For entity IDs: use sales_order for SalesOrder, delivery_document for Delivery, billing_document for BillingDocument, business_partner for Customer, product for Product, plant for Plant
+- Include entities for every DISTINCT row identifier in the results. ALSO include at least one entity per graph type that the SQL logically connects (e.g. a join of outbound_delivery_items and plants implies both Delivery and Plant types must appear in "entities", using any representative delivery_document and plant id from the result or subquery).
 - Respond ONLY with valid JSON.`;

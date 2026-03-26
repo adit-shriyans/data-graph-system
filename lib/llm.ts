@@ -1,6 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { SYSTEM_PROMPT, FORMAT_PROMPT } from "./prompts";
-import { validateSql, isOffTopic } from "./guardrails";
+import { validateSql, isOffTopic, inferGraphTypesFromSql } from "./guardrails";
 import { rawQuery } from "./db";
 import type { ChatResponse, NodeType } from "@/types";
 
@@ -98,9 +98,19 @@ ${JSON.stringify(queryResults.slice(0, 50), null, 2)}`;
     };
   }
 
+  const fromSql = inferGraphTypesFromSql(sqlResponse.sql);
+  const merged: { type: NodeType; id: string }[] = [...(formatted.entities || [])];
+  const seenTypes = new Set(merged.map((e) => e.type));
+  for (const t of fromSql) {
+    if (!seenTypes.has(t)) {
+      merged.push({ type: t, id: "__query_scope__" });
+      seenTypes.add(t);
+    }
+  }
+
   return {
     answer: formatted.answer,
     sql: sqlResponse.sql,
-    entities: formatted.entities,
+    entities: merged.length > 0 ? merged : undefined,
   };
 }

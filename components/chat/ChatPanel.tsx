@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useChat } from "@/hooks/useChat";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import MessageBubble from "./MessageBubble";
 import type { ChatMessage, NodeType } from "@/types";
 
@@ -17,6 +18,8 @@ export default function ChatPanel({
 }: {
   onEntitiesHighlighted?: (entities: { type: NodeType; id: string }[]) => void;
 }) {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -77,9 +80,15 @@ export default function ChatPanel({
   };
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950">
-      <div className="px-4 py-3 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm">
-        <h2 className="text-sm font-semibold text-zinc-200">
+    <div className={`flex flex-col h-full ${isLight ? "bg-white" : "bg-zinc-950"}`}>
+      <div
+        className={`px-4 py-3 border-b ${
+          isLight
+            ? "border-zinc-200 bg-white"
+            : "border-zinc-800 bg-zinc-900/80"
+        }`}
+      >
+        <h2 className="text-sm font-semibold text-zinc-900 dark:text-zinc-200">
           Query Assistant
         </h2>
         <p className="text-xs text-zinc-500 mt-0.5">
@@ -90,7 +99,7 @@ export default function ChatPanel({
       <div className="flex-1 overflow-auto p-4 space-y-3">
         {messages.length === 0 && (
           <div className="flex flex-col items-center justify-center h-full text-center">
-            <div className="w-12 h-12 rounded-full bg-blue-600/20 flex items-center justify-center mb-4">
+            <div className="w-12 h-12 rounded-full bg-blue-50 flex items-center justify-center mb-4 dark:bg-blue-600/20">
               <svg
                 className="w-6 h-6 text-blue-400"
                 fill="none"
@@ -105,7 +114,7 @@ export default function ChatPanel({
                 />
               </svg>
             </div>
-            <h3 className="text-sm font-medium text-zinc-300 mb-1">
+            <h3 className="text-sm font-medium text-zinc-800 mb-1 dark:text-zinc-300">
               Ask a question
             </h3>
             <p className="text-xs text-zinc-500 mb-4 max-w-xs">
@@ -117,7 +126,11 @@ export default function ChatPanel({
                 <button
                   key={q}
                   onClick={() => sendMessage(q)}
-                  className="w-full text-left text-xs px-3 py-2 bg-zinc-800/50 hover:bg-zinc-800 border border-zinc-700/50 rounded-lg text-zinc-400 hover:text-zinc-200 transition-colors"
+                  className={`w-full text-left text-xs px-3 py-2 border rounded-lg transition-colors ${
+                    isLight
+                      ? "bg-white hover:bg-zinc-50 border-zinc-200 text-zinc-600 hover:text-zinc-900"
+                      : "bg-zinc-800/50 hover:bg-zinc-800 border-zinc-700/50 text-zinc-400 hover:text-zinc-200"
+                  }`}
                 >
                   {q}
                 </button>
@@ -132,7 +145,11 @@ export default function ChatPanel({
 
         {chatMutation.isPending && (
           <div className="flex justify-start">
-            <div className="bg-zinc-800 border border-zinc-700 rounded-xl px-4 py-3">
+            <div
+              className={`border rounded-xl px-4 py-3 ${
+                isLight ? "bg-white border-zinc-200" : "bg-zinc-800 border-zinc-700"
+              }`}
+            >
               <div className="flex items-center gap-2">
                 <div className="flex space-x-1">
                   <div className="w-1.5 h-1.5 bg-zinc-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
@@ -150,7 +167,11 @@ export default function ChatPanel({
         <div ref={messagesEndRef} />
       </div>
 
-      <div className="p-3 border-t border-zinc-800 bg-zinc-900/80 backdrop-blur-sm">
+      <div
+        className={`p-3 border-t ${
+          isLight ? "border-zinc-200 bg-white" : "border-zinc-800 bg-zinc-900/80"
+        }`}
+      >
         <div className="flex gap-2">
           <input
             type="text"
@@ -164,12 +185,20 @@ export default function ChatPanel({
             }}
             placeholder="Ask about the O2C data..."
             disabled={chatMutation.isPending}
-            className="flex-1 px-3 py-2 text-sm bg-zinc-800 border border-zinc-700 rounded-lg text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50"
+            className={`flex-1 px-3 py-2 text-sm border rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 disabled:opacity-50 ${
+              isLight
+                ? "bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400"
+                : "bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500"
+            }`}
           />
           <button
             onClick={() => sendMessage()}
             disabled={chatMutation.isPending || !input.trim()}
-            className="px-4 py-2 bg-blue-600 hover:bg-blue-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium rounded-lg transition-colors"
+            className={`px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors ${
+              isLight
+                ? "disabled:bg-zinc-300 disabled:text-zinc-500"
+                : "disabled:bg-zinc-700 disabled:text-zinc-500"
+            }`}
           >
             Send
           </button>

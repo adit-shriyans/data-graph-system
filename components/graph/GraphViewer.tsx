@@ -3,6 +3,7 @@
 import { useCallback, useRef, useState, useEffect, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { useOverviewGraph, useExpandNode, useSearchNodes } from "@/hooks/useGraph";
+import { useTheme } from "@/components/providers/ThemeProvider";
 import NodeDetail from "./NodeDetail";
 import { NODE_COLORS, NODE_LABELS } from "@/types";
 import type { NodeType, GraphNode } from "@/types";
@@ -35,11 +36,17 @@ const BASE_R = { overview: 5, explore: 4 };
 
 export default function GraphViewer({
   highlightedEntities,
+  onClearHighlights,
 }: {
   highlightedEntities?: { type: NodeType; id: string }[];
+  onClearHighlights?: () => void;
 }) {
+  const { theme } = useTheme();
+  const isLight = theme === "light";
   const graphRef = useRef<ForceGraphMethods | undefined>(undefined);
   const containerRef = useRef<HTMLDivElement>(null);
+  // Auto fit should only run for structural graph transitions,
+  // not for visual-only theme changes.
   const needsZoomFitRef = useRef(true);
   const [dimensions, setDimensions] = useState({ width: 800, height: 600 });
   const [mode, setMode] = useState<"overview" | "explore">("overview");
@@ -92,12 +99,23 @@ export default function GraphViewer({
     return s;
   }, [highlightedEntities]);
 
+  const handleBackToOverview = useCallback(() => {
+    setMode("overview");
+    setExploreNodes([]);
+    setExploreLinks([]);
+    setSelectedNode(null);
+    setDetailNode(null);
+    setExpandType(null);
+    setExpandId(null);
+    needsZoomFitRef.current = true;
+  }, []);
+
   useEffect(() => {
     if (!highlightedEntities || highlightedEntities.length === 0) return;
     if (mode !== "overview") {
       handleBackToOverview();
     }
-  }, [highlightedEntities]);
+  }, [highlightedEntities, mode, handleBackToOverview]);
 
   useEffect(() => {
     if (!expanded) return;
@@ -224,17 +242,6 @@ export default function GraphViewer({
     setSearchInput("");
   };
 
-  const handleBackToOverview = () => {
-    setMode("overview");
-    setExploreNodes([]);
-    setExploreLinks([]);
-    setSelectedNode(null);
-    setDetailNode(null);
-    setExpandType(null);
-    setExpandId(null);
-    needsZoomFitRef.current = true;
-  };
-
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const label = node.label || "";
@@ -247,30 +254,54 @@ export default function GraphViewer({
       const r = (mode === "overview" ? BASE_R.overview : BASE_R.explore) / globalScale;
       const dimmed = mode === "overview" && highlightedTypes.size > 0 && !isHighlighted;
 
-      ctx.beginPath();
-      ctx.arc(node.x!, node.y!, r, 0, 2 * Math.PI);
-      ctx.fillStyle = dimmed
-        ? "rgba(107, 114, 128, 0.3)"
-        : isHovered ? "#ffffff" : nodeColor;
-      ctx.fill();
+      if (isLight) {
+        const strokeW = 1.25 / globalScale;
+        ctx.beginPath();
+        ctx.arc(node.x!, node.y!, r, 0, 2 * Math.PI);
+        ctx.fillStyle = dimmed ? "#f3f4f6" : "#ffffff";
+        ctx.fill();
+        ctx.strokeStyle = dimmed ? "rgba(229, 57, 53, 0.35)" : "#e53935";
+        ctx.lineWidth = strokeW * (isHovered && !dimmed ? 1.5 : 1);
+        ctx.stroke();
 
-      if (isHighlighted) {
+        if (isHighlighted) {
+          ctx.beginPath();
+          ctx.arc(node.x!, node.y!, r + 3.5 / globalScale, 0, 2 * Math.PI);
+          ctx.strokeStyle = "#2563eb";
+          ctx.lineWidth = 2 / globalScale;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(node.x!, node.y!, r + 6.5 / globalScale, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(37, 99, 235, 0.22)";
+          ctx.lineWidth = 3.5 / globalScale;
+          ctx.stroke();
+        }
+      } else {
         ctx.beginPath();
-        ctx.arc(node.x!, node.y!, r + 4 / globalScale, 0, 2 * Math.PI);
-        ctx.strokeStyle = "#facc15";
-        ctx.lineWidth = 2 / globalScale;
-        ctx.stroke();
-        ctx.beginPath();
-        ctx.arc(node.x!, node.y!, r + 7 / globalScale, 0, 2 * Math.PI);
-        ctx.strokeStyle = "rgba(250, 204, 21, 0.25)";
-        ctx.lineWidth = 4 / globalScale;
-        ctx.stroke();
-      } else if (isHovered) {
-        ctx.beginPath();
-        ctx.arc(node.x!, node.y!, r + 2 / globalScale, 0, 2 * Math.PI);
-        ctx.strokeStyle = "rgba(255,255,255,0.4)";
-        ctx.lineWidth = 0.8 / globalScale;
-        ctx.stroke();
+        ctx.arc(node.x!, node.y!, r, 0, 2 * Math.PI);
+        ctx.fillStyle = dimmed
+          ? "rgba(107, 114, 128, 0.3)"
+          : isHovered ? "#ffffff" : nodeColor;
+        ctx.fill();
+
+        if (isHighlighted) {
+          ctx.beginPath();
+          ctx.arc(node.x!, node.y!, r + 4 / globalScale, 0, 2 * Math.PI);
+          ctx.strokeStyle = "#facc15";
+          ctx.lineWidth = 2 / globalScale;
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.arc(node.x!, node.y!, r + 7 / globalScale, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(250, 204, 21, 0.25)";
+          ctx.lineWidth = 4 / globalScale;
+          ctx.stroke();
+        } else if (isHovered) {
+          ctx.beginPath();
+          ctx.arc(node.x!, node.y!, r + 2 / globalScale, 0, 2 * Math.PI);
+          ctx.strokeStyle = "rgba(255,255,255,0.4)";
+          ctx.lineWidth = 0.8 / globalScale;
+          ctx.stroke();
+        }
       }
 
       const fontSize = mode === "overview"
@@ -279,7 +310,9 @@ export default function GraphViewer({
       ctx.font = `${mode === "overview" ? "600 " : ""}${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillStyle = dimmed ? "rgba(212, 212, 216, 0.25)" : "#d4d4d8";
+      ctx.fillStyle = isLight
+        ? (dimmed ? "rgba(55, 65, 81, 0.35)" : "#374151")
+        : (dimmed ? "rgba(212, 212, 216, 0.25)" : "#d4d4d8");
 
       const lines = label.split("\n");
       lines.forEach((line: string, i: number) => {
@@ -290,7 +323,7 @@ export default function GraphViewer({
         );
       });
     },
-    [highlightSet, highlightedTypes, mode],
+    [highlightSet, highlightedTypes, mode, isLight],
   );
 
   const linkCanvasObject = useCallback(
@@ -305,15 +338,52 @@ export default function GraphViewer({
         && highlightedTypes.has(sourceId) && highlightedTypes.has(targetId);
       const edgeDimmed = mode === "overview" && highlightedTypes.size > 0 && !edgeHighlighted;
 
+      let stroke: string;
+      let fill: string;
+      let labelFill: string;
+      const lineW = edgeHighlighted ? 2 / globalScale : 1 / globalScale;
+
+      if (isLight) {
+        stroke = edgeHighlighted
+          ? "#0284c7"
+          : edgeDimmed
+            ? "rgba(125, 211, 252, 0.28)"
+            : "rgba(125, 211, 252, 0.92)";
+        fill = edgeHighlighted
+          ? "#0284c7"
+          : edgeDimmed
+            ? "rgba(125, 211, 252, 0.3)"
+            : "rgba(125, 211, 252, 0.95)";
+        labelFill = edgeHighlighted
+          ? "#0369a1"
+          : edgeDimmed
+            ? "rgba(100, 116, 139, 0.35)"
+            : "#64748b";
+      } else {
+        stroke = edgeHighlighted
+          ? "rgba(250, 204, 21, 0.8)"
+          : edgeDimmed
+            ? "rgba(168, 185, 204, 0.15)"
+            : "rgba(168, 185, 204, 0.7)";
+        fill = edgeHighlighted
+          ? "rgba(250, 204, 21, 0.9)"
+          : edgeDimmed
+            ? "rgba(168, 185, 204, 0.2)"
+            : "rgba(168, 185, 204, 0.8)";
+        labelFill = edgeHighlighted
+          ? "rgba(250, 204, 21, 0.95)"
+          : edgeDimmed
+            ? "rgba(168, 185, 204, 0.2)"
+            : mode === "overview"
+              ? "rgba(168, 185, 204, 0.75)"
+              : "rgba(168, 185, 204, 0.55)";
+      }
+
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-      ctx.strokeStyle = edgeHighlighted
-        ? "rgba(250, 204, 21, 0.8)"
-        : edgeDimmed
-          ? "rgba(168, 185, 204, 0.15)"
-          : "rgba(168, 185, 204, 0.7)";
-      ctx.lineWidth = edgeHighlighted ? 2 / globalScale : 1 / globalScale;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = lineW;
       ctx.stroke();
 
       const dx = end.x - start.x;
@@ -336,11 +406,7 @@ export default function GraphViewer({
         tipY - arrowLen * Math.sin(angle + Math.PI / 7),
       );
       ctx.closePath();
-      ctx.fillStyle = edgeHighlighted
-        ? "rgba(250, 204, 21, 0.9)"
-        : edgeDimmed
-          ? "rgba(168, 185, 204, 0.2)"
-          : "rgba(168, 185, 204, 0.8)";
+      ctx.fillStyle = fill;
       ctx.fill();
 
       const midX = (start.x + end.x) / 2;
@@ -351,16 +417,10 @@ export default function GraphViewer({
       ctx.font = `${edgeHighlighted ? "600 " : ""}${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = edgeHighlighted
-        ? "rgba(250, 204, 21, 0.95)"
-        : edgeDimmed
-          ? "rgba(168, 185, 204, 0.2)"
-          : mode === "overview"
-            ? "rgba(168, 185, 204, 0.75)"
-            : "rgba(168, 185, 204, 0.55)";
+      ctx.fillStyle = labelFill;
       ctx.fillText(link.relationship || "", midX, midY - 2 / globalScale);
     },
-    [mode, highlightedTypes],
+    [mode, highlightedTypes, isLight],
   );
 
   const handleEngineStop = useCallback(() => {
@@ -371,12 +431,20 @@ export default function GraphViewer({
   }, []);
 
   return (
-    <div className="flex flex-col h-full bg-zinc-950 relative">
-      <div className="flex items-center gap-2 p-3 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-sm z-10">
+    <div className={`flex flex-col h-full relative ${isLight ? "bg-white" : "bg-zinc-950"}`}>
+      <div
+        className={`flex items-center gap-2 p-3 border-b z-10 ${
+          isLight ? "border-zinc-200 bg-white" : "border-zinc-800 bg-zinc-900/80"
+        }`}
+      >
         {mode === "explore" && (
           <button
             onClick={handleBackToOverview}
-            className="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-300 transition-colors"
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              isLight
+                ? "bg-white border border-zinc-300 text-zinc-800 hover:bg-zinc-50"
+                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+            }`}
           >
             Back to Overview
           </button>
@@ -388,7 +456,11 @@ export default function GraphViewer({
             onChange={(e) => setSearchInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSearch()}
             placeholder="Search entities (ID, name)..."
-            className="flex-1 px-3 py-1.5 text-sm bg-zinc-800 border border-zinc-700 rounded-md text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            className={`flex-1 px-3 py-1.5 text-sm border rounded-md focus:outline-none focus:ring-1 focus:ring-blue-500 ${
+              isLight
+                ? "bg-white border-zinc-300 text-zinc-900 placeholder-zinc-400"
+                : "bg-zinc-800 border-zinc-700 text-zinc-200 placeholder-zinc-500"
+            }`}
           />
           <button
             onClick={handleSearch}
@@ -399,16 +471,21 @@ export default function GraphViewer({
           <button
             onClick={() => {
               handleBackToOverview();
+              onClearHighlights?.();
               needsZoomFitRef.current = true;
               graphRef.current?.d3ReheatSimulation();
             }}
-            className="px-3 py-1.5 text-xs font-medium bg-zinc-800 hover:bg-zinc-700 rounded-md text-zinc-300 transition-colors"
+            className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+              isLight
+                ? "bg-white border border-zinc-300 text-zinc-800 hover:bg-zinc-50"
+                : "bg-zinc-800 hover:bg-zinc-700 text-zinc-300"
+            }`}
             title="Reset graph to overview"
           >
             Reset
           </button>
         </div>
-        <span className="text-xs text-zinc-500">
+        <span className={`text-xs ${isLight ? "text-zinc-500" : "text-zinc-500"}`}>
           {mode === "overview" ? "Overview" : "Explore"} |{" "}
           {graphData.nodes.length} nodes
         </span>
@@ -417,18 +494,24 @@ export default function GraphViewer({
       {searchQuery &&
         searchResults?.nodes &&
         searchResults.nodes.length > 0 && (
-          <div className="absolute top-14 left-3 right-3 z-20 bg-zinc-900 border border-zinc-700 rounded-lg shadow-xl max-h-60 overflow-auto">
+          <div
+            className={`absolute top-14 left-3 right-3 z-20 border rounded-lg shadow-xl max-h-60 overflow-auto ${
+              isLight ? "bg-white border-zinc-200" : "bg-zinc-900 border-zinc-700"
+            }`}
+          >
             {searchResults.nodes.map((node) => (
               <button
                 key={`${node.type}:${node.id}`}
                 onClick={() => handleSearchSelect(node)}
-                className="w-full flex items-center gap-3 px-3 py-2 hover:bg-zinc-800 text-left transition-colors"
+                className={`w-full flex items-center gap-3 px-3 py-2 text-left transition-colors ${
+                  isLight ? "hover:bg-zinc-100" : "hover:bg-zinc-800"
+                }`}
               >
                 <span
                   className="w-2.5 h-2.5 rounded-full flex-shrink-0"
                   style={{ backgroundColor: NODE_COLORS[node.type] }}
                 />
-                <span className="text-sm text-zinc-200 truncate">
+                <span className={`text-sm truncate ${isLight ? "text-zinc-800" : "text-zinc-200"}`}>
                   {node.label}
                 </span>
                 <span className="text-xs text-zinc-500 ml-auto flex-shrink-0">
@@ -442,7 +525,7 @@ export default function GraphViewer({
       <div ref={containerRef} className="flex-1 relative overflow-hidden">
         {overviewLoading ? (
           <div className="flex items-center justify-center h-full">
-            <div className="text-zinc-400 text-sm">Loading graph...</div>
+            <div className={`text-sm ${isLight ? "text-zinc-500" : "text-zinc-400"}`}>Loading graph...</div>
           </div>
         ) : (
           <ForceGraph2D
@@ -460,10 +543,15 @@ export default function GraphViewer({
             }}
             linkCanvasObject={linkCanvasObject}
             onNodeClick={handleNodeClick}
+            onBackgroundClick={() => {
+              if (highlightedEntities && highlightedEntities.length > 0) {
+                onClearHighlights?.();
+              }
+            }}
             onNodeHover={(node: any) => { hoveredNodeRef.current = node || null; }}
             onEngineStop={handleEngineStop}
             nodeId="id"
-            backgroundColor="#09090b"
+            backgroundColor={isLight ? "#ffffff" : "#09090b"}
             d3AlphaDecay={0.02}
             d3VelocityDecay={0.3}
             cooldownTicks={200}
@@ -479,8 +567,12 @@ export default function GraphViewer({
       )}
 
       {mode === "overview" && (
-        <div className="absolute bottom-4 left-4 bg-zinc-900/90 backdrop-blur-sm border border-zinc-800 rounded-lg p-3">
-          <div className="text-xs font-medium text-zinc-400 mb-2">
+        <div
+          className={`absolute bottom-4 left-4 border rounded-lg p-3 shadow-sm ${
+            isLight ? "bg-white border-zinc-200" : "bg-zinc-900/90 border-zinc-800"
+          }`}
+        >
+          <div className={`text-xs font-medium mb-2 ${isLight ? "text-zinc-500" : "text-zinc-400"}`}>
             Entity Types
           </div>
           <div className="grid grid-cols-2 gap-1.5">
@@ -490,7 +582,7 @@ export default function GraphViewer({
                   className="w-2.5 h-2.5 rounded-full"
                   style={{ backgroundColor: color }}
                 />
-                <span className="text-xs text-zinc-400">
+                <span className={`text-xs ${isLight ? "text-zinc-600" : "text-zinc-400"}`}>
                   {NODE_LABELS[type as NodeType]}
                 </span>
               </div>
