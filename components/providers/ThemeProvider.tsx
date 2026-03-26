@@ -22,18 +22,18 @@ type ThemeContextValue = {
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    if (typeof window === "undefined") return "light";
+  const [theme, setThemeState] = useState<Theme>("light");
+
+  useEffect(() => {
     try {
       const s = localStorage.getItem(STORAGE_KEY) as Theme | null;
-      if (s === "light" || s === "dark") return s;
+      if (s === "light" || s === "dark") {
+        setThemeState(s);
+      }
     } catch {
       /* ignore */
     }
-    return document.documentElement.classList.contains("dark")
-      ? "dark"
-      : "light";
-  });
+  }, []);
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");

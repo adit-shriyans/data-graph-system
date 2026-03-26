@@ -31,14 +31,6 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       suppressHydrationWarning
     >
-      <head>
-        <script
-          dangerouslySetInnerHTML={{
-            __html:
-              "(()=>{try{var t=localStorage.getItem('o2c-theme');var d=t==='dark';document.documentElement.classList.toggle('dark',d);document.documentElement.dataset.theme=d?'dark':'light';}catch(e){document.documentElement.classList.remove('dark');document.documentElement.dataset.theme='light';}})();",
-          }}
-        />
-      </head>
       <body className="h-full bg-white text-zinc-900 dark:bg-zinc-950 dark:text-zinc-100">
         <ThemeProvider>
           <QueryProvider>{children}</QueryProvider>
