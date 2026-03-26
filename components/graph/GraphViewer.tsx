@@ -334,44 +334,71 @@ export default function GraphViewer({
 
       const sourceId = typeof start === "string" ? start : start.id;
       const targetId = typeof end === "string" ? end : end.id;
-      const edgeHighlighted = mode === "overview" && highlightedTypes.size > 0
-        && highlightedTypes.has(sourceId) && highlightedTypes.has(targetId);
-      const edgeDimmed = mode === "overview" && highlightedTypes.size > 0 && !edgeHighlighted;
+      const sourceLookup = mode === "overview"
+        ? sourceId
+        : sourceId.toString().split(":")?.[1] || sourceId.toString();
+      const targetLookup = mode === "overview"
+        ? targetId
+        : targetId.toString().split(":")?.[1] || targetId.toString();
+      const hasHighlights = mode === "overview"
+        ? highlightedTypes.size > 0
+        : highlightSet.size > 0;
+      const sourceMatched = mode === "overview"
+        ? highlightedTypes.has(sourceLookup)
+        : highlightSet.has(sourceLookup);
+      const targetMatched = mode === "overview"
+        ? highlightedTypes.has(targetLookup)
+        : highlightSet.has(targetLookup);
+      const edgeHighlighted = hasHighlights && (sourceMatched || targetMatched);
+      const edgeStrong = hasHighlights && sourceMatched && targetMatched;
+      const edgeDimmed = hasHighlights && !edgeHighlighted;
 
       let stroke: string;
       let fill: string;
       let labelFill: string;
-      const lineW = edgeHighlighted ? 2 / globalScale : 1 / globalScale;
+      const lineW = edgeStrong ? 2 / globalScale : edgeHighlighted ? 1.5 / globalScale : 1 / globalScale;
 
       if (isLight) {
-        stroke = edgeHighlighted
+        stroke = edgeStrong
           ? "#0284c7"
+          : edgeHighlighted
+            ? "rgba(2, 132, 199, 0.85)"
           : edgeDimmed
             ? "rgba(125, 211, 252, 0.28)"
             : "rgba(125, 211, 252, 0.92)";
-        fill = edgeHighlighted
+        fill = edgeStrong
           ? "#0284c7"
+          : edgeHighlighted
+            ? "rgba(2, 132, 199, 0.9)"
           : edgeDimmed
             ? "rgba(125, 211, 252, 0.3)"
             : "rgba(125, 211, 252, 0.95)";
-        labelFill = edgeHighlighted
+        labelFill = edgeStrong
           ? "#0369a1"
+          : edgeHighlighted
+            ? "rgba(3, 105, 161, 0.85)"
           : edgeDimmed
             ? "rgba(100, 116, 139, 0.35)"
             : "#64748b";
       } else {
-        stroke = edgeHighlighted
+        stroke = edgeStrong
           ? "rgba(250, 204, 21, 0.8)"
+          : edgeHighlighted
+            ? "rgba(250, 204, 21, 0.65)"
           : edgeDimmed
             ? "rgba(168, 185, 204, 0.15)"
             : "rgba(168, 185, 204, 0.7)";
-        fill = edgeHighlighted
+        fill = edgeStrong
           ? "rgba(250, 204, 21, 0.9)"
+          : edgeHighlighted
+            ? "rgba(250, 204, 21, 0.75)"
           : edgeDimmed
             ? "rgba(168, 185, 204, 0.2)"
             : "rgba(168, 185, 204, 0.8)";
-        labelFill = edgeHighlighted
+        labelFill = edgeStrong
           ? "rgba(250, 204, 21, 0.95)"
+          : edgeHighlighted
+            ? "rgba(250, 204, 21, 0.75)"
           : edgeDimmed
             ? "rgba(168, 185, 204, 0.2)"
             : mode === "overview"
@@ -414,13 +441,13 @@ export default function GraphViewer({
       const fontSize = mode === "overview"
         ? Math.max(2.5, 8 / globalScale)
         : Math.max(2, 7 / globalScale);
-      ctx.font = `${edgeHighlighted ? "600 " : ""}${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.font = `${edgeStrong ? "600 " : ""}${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
       ctx.fillStyle = labelFill;
       ctx.fillText(link.relationship || "", midX, midY - 2 / globalScale);
     },
-    [mode, highlightedTypes, isLight],
+    [mode, highlightedTypes, highlightSet, isLight],
   );
 
   const handleEngineStop = useCallback(() => {

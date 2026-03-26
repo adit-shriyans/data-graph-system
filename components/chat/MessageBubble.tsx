@@ -95,7 +95,7 @@ export default function MessageBubble({ message }: { message: ChatMessage }) {
 }
 
 function FormattedContent({ content, isLight }: { content: string; isLight: boolean }) {
-  const parts = content.split(/(```[\s\S]*?```|\|.*\|)/g);
+  const parts = content.split(/(```[\s\S]*?```)/g);
 
   return (
     <>
@@ -116,17 +116,134 @@ function FormattedContent({ content, isLight }: { content: string; isLight: bool
           );
         }
 
-        const formatted = part
-          .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
-          .replace(
-            /`(.*?)`/g,
-            `<code class="${isLight ? "bg-zinc-200" : "bg-zinc-700"} px-1 rounded text-xs">$1</code>`,
-          );
-
         return (
-          <span key={i} dangerouslySetInnerHTML={{ __html: formatted }} />
+          <MarkdownText key={i} text={part} isLight={isLight} />
         );
       })}
     </>
   );
+}
+
+function MarkdownText({ text, isLight }: { text: string; isLight: boolean }) {
+  const lines = text.split("\n");
+  const blocks: React.ReactNode[] = [];
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+    const next = lines[i + 1];
+    const isTableHeader = isTableRow(line) && isSeparatorRow(next);
+
+    if (isTableHeader) {
+      const tableLines = [line];
+      i += 2; // Skip header + separator
+      while (i < lines.length && isTableRow(lines[i])) {
+        tableLines.push(lines[i]);
+        i += 1;
+      }
+      blocks.push(
+        <MarkdownTable
+          key={`table-${i}-${tableLines.length}`}
+          lines={tableLines}
+          isLight={isLight}
+        />,
+      );
+      continue;
+    }
+
+    const paragraphLines: string[] = [];
+    while (i < lines.length) {
+      const current = lines[i];
+      const upcoming = lines[i + 1];
+      if (isTableRow(current) && isSeparatorRow(upcoming)) break;
+      paragraphLines.push(current);
+      i += 1;
+    }
+
+    const paragraph = paragraphLines.join("\n");
+    if (paragraph.trim().length > 0) {
+      const formatted = paragraph
+        .replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>")
+        .replace(
+          /`(.*?)`/g,
+          `<code class="${isLight ? "bg-zinc-200" : "bg-zinc-700"} px-1 rounded text-xs">$1</code>`,
+        )
+        .replace(/\n/g, "<br/>");
+
+      blocks.push(
+        <span
+          key={`text-${i}-${paragraph.length}`}
+          dangerouslySetInnerHTML={{ __html: formatted }}
+        />,
+      );
+    }
+  }
+
+  return <>{blocks}</>;
+}
+
+function MarkdownTable({ lines, isLight }: { lines: string[]; isLight: boolean }) {
+  const rows = lines.map(parseTableRow).filter((row) => row.length > 0);
+  if (rows.length === 0) return null;
+
+  const header = rows[0];
+  const body = rows.slice(1);
+
+  return (
+    <div className="my-2 overflow-x-auto">
+      <table className={`min-w-full text-xs border rounded-md ${isLight ? "border-zinc-200" : "border-zinc-700"}`}>
+        <thead>
+          <tr className={isLight ? "bg-zinc-50" : "bg-zinc-900"}>
+            {header.map((cell, idx) => (
+              <th
+                key={`h-${idx}`}
+                className={`px-2 py-1.5 text-left font-semibold border-b whitespace-nowrap ${
+                  isLight ? "text-zinc-700 border-zinc-200" : "text-zinc-200 border-zinc-700"
+                }`}
+              >
+                {cell}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {body.map((row, rowIdx) => (
+            <tr key={`r-${rowIdx}`} className={isLight ? "odd:bg-white even:bg-zinc-50/60" : "odd:bg-zinc-800 even:bg-zinc-800/70"}>
+              {row.map((cell, cellIdx) => (
+                <td
+                  key={`c-${rowIdx}-${cellIdx}`}
+                  className={`px-2 py-1.5 border-t align-top ${
+                    isLight ? "text-zinc-700 border-zinc-200" : "text-zinc-300 border-zinc-700"
+                  }`}
+                >
+                  {cell}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function isTableRow(line?: string) {
+  if (!line) return false;
+  const trimmed = line.trim();
+  return trimmed.startsWith("|") && trimmed.endsWith("|");
+}
+
+function isSeparatorRow(line?: string) {
+  if (!line) return false;
+  const cells = parseTableRow(line);
+  return cells.length > 0 && cells.every((cell) => /^:?-{3,}:?$/.test(cell));
+}
+
+function parseTableRow(line: string) {
+  return line
+    .trim()
+    .replace(/^\|/, "")
+    .replace(/\|$/, "")
+    .split("|")
+    .map((cell) => cell.trim());
 }
