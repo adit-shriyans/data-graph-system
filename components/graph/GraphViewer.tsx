@@ -86,15 +86,17 @@ export default function GraphViewer({
     return s;
   }, [highlightedEntities]);
 
+  const highlightedTypes = useMemo(() => {
+    const s = new Set<string>();
+    highlightedEntities?.forEach((e) => s.add(e.type));
+    return s;
+  }, [highlightedEntities]);
+
   useEffect(() => {
     if (!highlightedEntities || highlightedEntities.length === 0) return;
-    const first = highlightedEntities[0];
-    setMode("explore");
-    setExploreNodes([]);
-    setExploreLinks([]);
-    setExpandType(first.type);
-    setExpandId(first.id);
-    needsZoomFitRef.current = true;
+    if (mode !== "overview") {
+      handleBackToOverview();
+    }
   }, [highlightedEntities]);
 
   useEffect(() => {
@@ -236,16 +238,20 @@ export default function GraphViewer({
   const nodeCanvasObject = useCallback(
     (node: any, ctx: CanvasRenderingContext2D, globalScale: number) => {
       const label = node.label || "";
-      const isHighlighted = highlightSet.has(
-        node.id?.toString().split(":")?.[1] || "",
-      );
+      const nodeId = node.id?.toString() || "";
+      const isHighlighted = mode === "overview"
+        ? highlightedTypes.has(nodeId)
+        : highlightSet.has(nodeId.split(":")?.[1] || "");
       const isHovered = hoveredNodeRef.current?.id === node.id;
       const nodeColor = node.color || "#6b7280";
       const r = (mode === "overview" ? BASE_R.overview : BASE_R.explore) / globalScale;
+      const dimmed = mode === "overview" && highlightedTypes.size > 0 && !isHighlighted;
 
       ctx.beginPath();
       ctx.arc(node.x!, node.y!, r, 0, 2 * Math.PI);
-      ctx.fillStyle = isHovered ? "#ffffff" : nodeColor;
+      ctx.fillStyle = dimmed
+        ? "rgba(107, 114, 128, 0.3)"
+        : isHovered ? "#ffffff" : nodeColor;
       ctx.fill();
 
       if (isHighlighted) {
@@ -255,9 +261,9 @@ export default function GraphViewer({
         ctx.lineWidth = 2 / globalScale;
         ctx.stroke();
         ctx.beginPath();
-        ctx.arc(node.x!, node.y!, r + 6 / globalScale, 0, 2 * Math.PI);
-        ctx.strokeStyle = "rgba(250, 204, 21, 0.3)";
-        ctx.lineWidth = 3 / globalScale;
+        ctx.arc(node.x!, node.y!, r + 7 / globalScale, 0, 2 * Math.PI);
+        ctx.strokeStyle = "rgba(250, 204, 21, 0.25)";
+        ctx.lineWidth = 4 / globalScale;
         ctx.stroke();
       } else if (isHovered) {
         ctx.beginPath();
@@ -273,7 +279,7 @@ export default function GraphViewer({
       ctx.font = `${mode === "overview" ? "600 " : ""}${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
-      ctx.fillStyle = "#d4d4d8";
+      ctx.fillStyle = dimmed ? "rgba(212, 212, 216, 0.25)" : "#d4d4d8";
 
       const lines = label.split("\n");
       lines.forEach((line: string, i: number) => {
@@ -284,7 +290,7 @@ export default function GraphViewer({
         );
       });
     },
-    [highlightSet, mode],
+    [highlightSet, highlightedTypes, mode],
   );
 
   const linkCanvasObject = useCallback(
@@ -293,11 +299,21 @@ export default function GraphViewer({
       const end = link.target;
       if (!start?.x || !end?.x) return;
 
+      const sourceId = typeof start === "string" ? start : start.id;
+      const targetId = typeof end === "string" ? end : end.id;
+      const edgeHighlighted = mode === "overview" && highlightedTypes.size > 0
+        && highlightedTypes.has(sourceId) && highlightedTypes.has(targetId);
+      const edgeDimmed = mode === "overview" && highlightedTypes.size > 0 && !edgeHighlighted;
+
       ctx.beginPath();
       ctx.moveTo(start.x, start.y);
       ctx.lineTo(end.x, end.y);
-      ctx.strokeStyle = "rgba(168, 185, 204, 0.7)";
-      ctx.lineWidth = 1 / globalScale;
+      ctx.strokeStyle = edgeHighlighted
+        ? "rgba(250, 204, 21, 0.8)"
+        : edgeDimmed
+          ? "rgba(168, 185, 204, 0.15)"
+          : "rgba(168, 185, 204, 0.7)";
+      ctx.lineWidth = edgeHighlighted ? 2 / globalScale : 1 / globalScale;
       ctx.stroke();
 
       const dx = end.x - start.x;
@@ -320,7 +336,11 @@ export default function GraphViewer({
         tipY - arrowLen * Math.sin(angle + Math.PI / 7),
       );
       ctx.closePath();
-      ctx.fillStyle = "rgba(168, 185, 204, 0.8)";
+      ctx.fillStyle = edgeHighlighted
+        ? "rgba(250, 204, 21, 0.9)"
+        : edgeDimmed
+          ? "rgba(168, 185, 204, 0.2)"
+          : "rgba(168, 185, 204, 0.8)";
       ctx.fill();
 
       const midX = (start.x + end.x) / 2;
@@ -328,15 +348,19 @@ export default function GraphViewer({
       const fontSize = mode === "overview"
         ? Math.max(2.5, 8 / globalScale)
         : Math.max(2, 7 / globalScale);
-      ctx.font = `${fontSize}px Inter, system-ui, sans-serif`;
+      ctx.font = `${edgeHighlighted ? "600 " : ""}${fontSize}px Inter, system-ui, sans-serif`;
       ctx.textAlign = "center";
       ctx.textBaseline = "middle";
-      ctx.fillStyle = mode === "overview"
-        ? "rgba(168, 185, 204, 0.75)"
-        : "rgba(168, 185, 204, 0.55)";
+      ctx.fillStyle = edgeHighlighted
+        ? "rgba(250, 204, 21, 0.95)"
+        : edgeDimmed
+          ? "rgba(168, 185, 204, 0.2)"
+          : mode === "overview"
+            ? "rgba(168, 185, 204, 0.75)"
+            : "rgba(168, 185, 204, 0.55)";
       ctx.fillText(link.relationship || "", midX, midY - 2 / globalScale);
     },
-    [mode],
+    [mode, highlightedTypes],
   );
 
   const handleEngineStop = useCallback(() => {
